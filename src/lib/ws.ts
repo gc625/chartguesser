@@ -1,11 +1,20 @@
 import { WebSocketServer } from "ws";
 import type { Server } from "http";
 import {
-  getMatch, addPlayer, handleMessage, removePlayer, type Match, type Player,
+  getMatch, joinPlayer, syncPlayer, handleMessage, disconnectPlayer, type Match, type Player,
 } from "./match";
 
 export function attachWs(server: Server) {
   const wss = new WebSocketServer({ noServer: true });
+  const heartbeat = setInterval(() => {
+    wss.clients.forEach((ws: any) => {
+      if (ws.isAlive === false) return ws.terminate();
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30000);
+  heartbeat.unref?.();
+  server.on("close", () => clearInterval(heartbeat));
 
   server.on("upgrade", (req, socket, head) => {
     const url = new URL(req.url || "", "http://x");
@@ -17,6 +26,8 @@ export function attachWs(server: Server) {
   });
 
   wss.on("connection", (ws, req) => {
+    (ws as any).isAlive = true;
+    ws.on("pong", () => { (ws as any).isAlive = true; });
     const url = new URL(req.url || "", "http://x");
     const matchId = url.pathname.replace(/^\/ws\//, "");
     const m: Match | undefined = getMatch(matchId);
@@ -31,16 +42,35 @@ export function attachWs(server: Server) {
       try { msg = JSON.parse(raw.toString()); } catch { return; }
       console.log(`[ws:${matchId}] ${msg.type} from ${p?.name ?? "?"}`);
       if (msg.type === "join") {
-        if (m.players.length >= 2) {
-          ws.send(JSON.stringify({ type: "error", payload: { message: "Match is full" } }));
+        if (p) return;
+        const sessionId = typeof msg.sessionId === "string" ? msg.sessionId.slice(0, 100) : "";
+        if (!sessionId) {
+          ws.send(JSON.stringify({ type: "error", payload: { message: "Invalid player session" } }));
+          ws.close();
           return;
         }
-        p = addPlayer(m, ws, msg.displayName);
-        ws.send(JSON.stringify({ type: "joined", payload: { playerId: p.id, matchId: m.id } }));
-        m.players.forEach((o) => o.ws.send(JSON.stringify({
-          type: "playerJoined",
-          payload: { players: m.players.map((x) => ({ id: x.id, name: x.name, ready: x.ready })), config: m.config },
-        })));
+        const displayName = typeof msg.displayName === "string" ? msg.displayName : "";
+        const joined = joinPlayer(m, ws, displayName, sessionId);
+        if (!joined) {
+          const message = m.state === "lobby" ? "Match is full" : "Match has already started";
+          ws.send(JSON.stringify({ type: "error", payload: { message } }));
+          ws.close();
+          return;
+        }
+        p = joined.player;
+        syncPlayer(m, p);
+        m.players.forEach((o) => {
+          if (o.ws?.readyState !== 1) return;
+          o.ws.send(JSON.stringify({
+            type: "playerJoined",
+            payload: {
+              players: m.players.map((x) => ({
+                id: x.id, name: x.name, ready: x.ready, connected: x.ws?.readyState === 1,
+              })),
+              config: m.config,
+            },
+          }));
+        });
       } else if (p) {
         try {
           await handleMessage(m, p, msg);
@@ -50,7 +80,7 @@ export function attachWs(server: Server) {
       }
     });
     ws.on("close", () => {
-      if (p) removePlayer(m, p);
+      if (p) disconnectPlayer(m, p, ws);
     });
   });
 }
