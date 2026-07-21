@@ -14,11 +14,12 @@ export default function ChartView({
 
   useEffect(() => {
     if (!ref.current || !candles.length) return;
-    const chart = createChart(ref.current, {
+    const container = ref.current;
+    const chart = createChart(container, {
       layout: { background: { type: ColorType.Solid, color: "#0a0a0a" }, textColor: "#d4d4d8" },
       grid: { vertLines: { color: "#27272a" }, horzLines: { color: "#27272a" } },
-      width: ref.current.clientWidth,
-      height: ref.current.clientHeight,
+      width: Math.max(container.clientWidth, 1),
+      height: Math.max(container.clientHeight, 1),
       timeScale: { visible: !anonymizeDate },
       rightPriceScale: { visible: !anonymizePrice },
     });
@@ -39,12 +40,13 @@ export default function ChartView({
     volSeries.setData(candles.map((c) => ({ time: anonymizeDate ? (c.i as any) : (c.i / 1000) as any, value: c.v, color: "#3f3f46" })));
     chart.timeScale().fitContent();
 
-    const onResize = () => {
-      if (ref.current) chart.applyOptions({ width: ref.current.clientWidth, height: ref.current.clientHeight });
-    };
-    window.addEventListener("resize", onResize);
-    return () => { window.removeEventListener("resize", onResize); chart.remove(); };
+    const observer = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) chart.resize(width, height);
+    });
+    observer.observe(container);
+    return () => { observer.disconnect(); chart.remove(); };
   }, [candles, anonymizeDate, anonymizePrice]);
 
-  return <div ref={ref} className="w-full h-full" />;
+  return <div ref={ref} className="h-full min-h-0 w-full min-w-0 overflow-hidden rounded-xl" />;
 }

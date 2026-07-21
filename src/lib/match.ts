@@ -183,11 +183,13 @@ export async function handleMessage(m: Match, p: Player, msg: any) {
   if (msg.type === "ready") {
     if (m.state !== "lobby") return;
     p.ready = !!msg.ready;
+    console.log(`[match:${m.id}] ${p.name} ready=${p.ready} players=${m.players.length} allReady=${m.players.every((x) => x.ready)}`);
     broadcast(m, "readyState", lobbyState(m).players);
     if (m.players.length === 2 && m.players.every((x) => x.ready)) {
       m.state = "playing";
       broadcast(m, "matchStart", { config: m.config });
       m.roundIndex = 0;
+      console.log(`[match:${m.id}] matchStart -> starting round 1`);
       await startRound(m);
     }
   } else if (msg.type === "guess") {
@@ -196,6 +198,7 @@ export async function handleMessage(m: Match, p: Player, msg: any) {
     p.guess = (msg.ticker || "").toUpperCase();
     p.guessAt = Date.now();
     send(p, "guessAck", { guess: p.guess });
+    broadcast(m, "guessSubmitted", { playerId: p.id, name: p.name, guess: p.guess, guessAt: p.guessAt });
     const correct = m.current?.ticker;
     const bothSubmitted = m.players.every((x) => x.guess != null);
     const someoneCorrect = m.players.some((x) => x.guess === correct);

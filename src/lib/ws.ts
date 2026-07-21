@@ -26,9 +26,10 @@ export function attachWs(server: Server) {
       return;
     }
     let p: Player | null = null;
-    ws.on("message", (raw) => {
+    ws.on("message", async (raw) => {
       let msg: any;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
+      console.log(`[ws:${matchId}] ${msg.type} from ${p?.name ?? "?"}`);
       if (msg.type === "join") {
         if (m.players.length >= 2) {
           ws.send(JSON.stringify({ type: "error", payload: { message: "Match is full" } }));
@@ -41,7 +42,11 @@ export function attachWs(server: Server) {
           payload: { players: m.players.map((x) => ({ id: x.id, name: x.name, ready: x.ready })), config: m.config },
         })));
       } else if (p) {
-        handleMessage(m, p, msg);
+        try {
+          await handleMessage(m, p, msg);
+        } catch (e: any) {
+          console.error(`[ws:${matchId}] handler error`, e?.message || e);
+        }
       }
     });
     ws.on("close", () => {

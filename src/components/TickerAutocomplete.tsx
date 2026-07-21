@@ -40,8 +40,8 @@ export default function TickerAutocomplete({
   }
 
   return (
-    <div ref={boxRef} className="relative w-full">
-      <div className="flex gap-2">
+    <div ref={boxRef} className="relative w-full min-w-0">
+      <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
         <input
           value={q}
           disabled={disabled}
@@ -53,23 +53,25 @@ export default function TickerAutocomplete({
             else if (e.key === "ArrowUp") { e.preventDefault(); setActive((a) => Math.max(a - 1, 0)); }
           }}
           placeholder="Type a ticker (e.g. AAPL)…"
-          className="flex-1 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+          autoComplete="off"
+          autoCapitalize="characters"
+          className="w-full min-w-0 min-h-11 bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-base sm:text-sm disabled:opacity-50"
         />
         <button
           disabled={disabled || !tickers.includes(q.toUpperCase())}
           onClick={() => submit(q)}
-          className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 rounded-lg px-4 font-semibold text-sm"
+          className="min-h-11 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:hover:bg-emerald-600 rounded-lg px-3 sm:px-4 font-semibold text-sm"
         >
           Submit
         </button>
       </div>
       {open && matches.length > 0 && (
-        <div className="absolute z-10 mt-1 w-full bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+        <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto bg-zinc-900 border border-zinc-800 rounded-lg shadow-2xl">
           {matches.map((t, i) => (
-            <div key={t} onMouseDown={() => submit(t)}
-              className={`px-3 py-2 text-sm cursor-pointer ${i === active ? "bg-emerald-700" : "hover:bg-zinc-800"}`}>
+            <button type="button" key={t} onMouseDown={() => submit(t)}
+              className={`block w-full min-h-11 px-3 py-2 text-left text-sm cursor-pointer ${i === active ? "bg-emerald-700" : "hover:bg-zinc-800"}`}>
               {t}
-            </div>
+            </button>
           ))}
         </div>
       )}

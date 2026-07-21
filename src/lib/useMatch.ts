@@ -8,6 +8,7 @@ export type MatchConfig = {
 };
 export type WindowCandle = { i: number; o: number; h: number; l: number; c: number; v: number };
 
+export type Guess = { playerId: string; name: string; guess: string; guessAt: number };
 export type MatchState = {
   connected: boolean;
   joined: boolean;
@@ -19,6 +20,7 @@ export type MatchState = {
   roundResult: { correctTicker: string; guesses: any[]; damage: any; hp: any; winner: string | null } | null;
   matchResult: { winner: string | null; finalHp: any; totalTimeToCorrect: any } | null;
   myGuess: string | null;
+  guesses: Guess[];
   error: string | null;
 };
 
@@ -26,7 +28,7 @@ export function useMatch(matchId: string, displayName: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const [state, setState] = useState<MatchState>({
     connected: false, joined: false, playerId: null, players: [], config: null,
-    phase: "lobby", round: null, roundResult: null, matchResult: null, myGuess: null, error: null,
+    phase: "lobby", round: null, roundResult: null, matchResult: null, myGuess: null, guesses: [], error: null,
   });
 
   useEffect(() => {
@@ -46,8 +48,9 @@ export function useMatch(matchId: string, displayName: string) {
           case "playerJoined": return { ...s, players: payload.players, config: payload.config || s.config };
           case "readyState": return { ...s, players: payload };
           case "matchStart": return { ...s, phase: "playing", config: payload.config, roundResult: null, matchResult: null };
-          case "roundStart": return { ...s, phase: "playing", round: { index: payload.roundIndex, total: payload.totalRounds, timeLimit: payload.timeLimit, window: payload.window, timeframe: payload.timeframe, anonymize: payload.anonymize, hp: payload.hp }, roundResult: null, myGuess: null };
+          case "roundStart": return { ...s, phase: "playing", round: { index: payload.roundIndex, total: payload.totalRounds, timeLimit: payload.timeLimit, window: payload.window, timeframe: payload.timeframe, anonymize: payload.anonymize, hp: payload.hp }, roundResult: null, myGuess: null, guesses: [] };
           case "guessAck": return { ...s, myGuess: payload.guess };
+          case "guessSubmitted": return { ...s, guesses: [...s.guesses, { playerId: payload.playerId, name: payload.name, guess: payload.guess, guessAt: payload.guessAt }] };
           case "roundEnd": return { ...s, phase: "roundEnd", roundResult: { correctTicker: payload.correctTicker, guesses: payload.guesses, damage: payload.damage, hp: payload.hp, winner: payload.winner } };
           case "matchEnd": return { ...s, phase: "ended", matchResult: { winner: payload.winner, finalHp: payload.finalHp, totalTimeToCorrect: payload.totalTimeToCorrect } };
           case "opponentDisconnected": return { ...s, error: "Opponent disconnected" };

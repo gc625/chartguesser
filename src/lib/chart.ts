@@ -21,7 +21,7 @@ export async function getCandles(
   const period1 = new Date("2000-01-01");
   const period2 = new Date();
   try {
-    const r: any = await yf.chart(ticker, { period1, period2, interval });
+    const r: any = await withTimeout(yf.chart(ticker, { period1, period2, interval }), 8000);
     const quotes: any[] = r.quotes || [];
     if (quotes.length < 50) throw new Error("insufficient");
     const candles: Candle[] = quotes
@@ -37,6 +37,13 @@ export async function getCandles(
     cache.delete(key);
     throw e;
   }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("timeout")), ms);
+    p.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+  });
 }
 
 export async function sampleWindow(
