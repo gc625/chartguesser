@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
-  --foreground: #f4f4f5;
+  --background: #080a12;
+  --foreground: #eef2ff;
 }
 
 @theme inline {
@@ -12,17 +12,10 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
   margin: 0;
   min-width: 320px;
   overflow-x: hidden;
@@ -37,4 +30,72 @@ select {
 
 button {
   touch-action: manipulation;
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 10% -10%, rgb(34 211 238 / 0.14), transparent 32rem),
+    radial-gradient(circle at 100% 0%, rgb(192 132 252 / 0.1), transparent 28rem),
+    #080a12;
+}
+
+.panel {
+  border: 1px solid rgb(71 85 105 / 0.7);
+  border-radius: 1.25rem;
+  background: linear-gradient(145deg, rgb(20 27 47 / 0.9), rgb(12 16 29 / 0.88));
+  box-shadow: 0 24px 70px rgb(0 0 0 / 0.28);
+}
+
+.eyebrow {
+  color: #67e8f9;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.field {
+  min-height: 3rem;
+  width: 100%;
+  border: 1px solid #334155;
+  border-radius: 0.75rem;
+  background: rgb(2 6 23 / 0.8);
+  padding: 0.625rem 0.75rem;
+  color: #f8fafc;
+  outline: none;
+}
+
+.field:focus {
+  border-color: #22d3ee;
+  box-shadow: 0 0 0 3px rgb(34 211 238 / 0.13);
+}
+
+.primary-button,
+.secondary-button {
+  min-height: 3rem;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1rem;
+  font-weight: 700;
+  transition: transform 150ms ease, background-color 150ms ease, border-color 150ms ease;
+}
+
+.primary-button {
+  background: #22d3ee;
+  color: #082f49;
+}
+
+.primary-button:hover:not(:disabled) {
+  background: #67e8f9;
+  transform: translateY(-1px);
+}
+
+.secondary-button {
+  border: 1px solid #475569;
+  background: #172033;
+  color: #e2e8f0;
+}
+
+.secondary-button:hover:not(:disabled) {
+  border-color: #94a3b8;
+  background: #1e293b;
 }

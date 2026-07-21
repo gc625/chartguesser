@@ -7,7 +7,21 @@ const DOW_30 = [
   "MRK", "MSFT", "NKE", "PG", "CRM", "TRV", "UNH", "VZ", "V", "WMT",
 ];
 
-const cache: Record<string, string[]> = { "Dow 30": DOW_30 };
+// The companies that supply the compute, networking, memory, power, and
+// fabrication capacity behind the current AI buildout, plus liquid sector ETFs.
+const AI_INFRASTRUCTURE_AND_SEMIS = [
+  "SOXX", "SMH", "XSD", "SOXQ",
+  "NVDA", "AVGO", "AMD", "INTC", "TSM", "ASML", "ARM", "MRVL",
+  "MU", "LRCX", "AMAT", "KLAC", "MCHP", "ON", "ADI", "TXN",
+  "ANET", "CRDO", "VRT", "ETN", "GEV", "PWR", "CEG", "VST",
+];
+
+export const CUSTOM_UNIVERSE = "Custom basket";
+
+const cache: Record<string, string[]> = {
+  "Dow 30": DOW_30,
+  "AI Infrastructure & Semis": AI_INFRASTRUCTURE_AND_SEMIS,
+};
 
 async function fetchTickers(url: string, pattern: RegExp): Promise<string[]> {
   const res = await fetch(url, { headers: { "User-Agent": "chartguesser/1.0" } });
@@ -42,4 +56,4 @@ export async function getUniverse(name: string): Promise<string[]> {
   return cache[name] || DOW_30;
 }
 
-export const UNIVERSE_NAMES = ["S&P 500", "Nasdaq 100", "Dow 30"];
+export const UNIVERSE_NAMES = ["S&P 500", "Nasdaq 100", "Dow 30", "AI Infrastructure & Semis"];

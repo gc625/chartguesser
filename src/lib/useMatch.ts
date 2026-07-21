@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 export type PlayerInfo = { id: string; name: string; ready: boolean; connected?: boolean };
 export type MatchConfig = {
   universe: string; rounds: number; roundTimer: number; startingHp: number;
+  customTickers: string[];
+  guessMode: "single" | "unlimited"; wrongGuessPenalty: number;
   anonymizeDate: boolean; anonymizePrice: boolean; timeframe: string;
 };
 export type WindowCandle = { i: number; t: number; o: number; h: number; l: number; c: number; v: number };
@@ -16,11 +18,14 @@ export type MatchState = {
   players: PlayerInfo[];
   config: MatchConfig | null;
   phase: "lobby" | "playing" | "roundEnd" | "ended";
-  round: { index: number; total: number; timeLimit: number; window: WindowCandle[]; timeframe: string; anonymize: any; hp: any } | null;
-  roundResult: { correctTicker: string; guesses: any[]; damage: any; hp: any; winner: string | null } | null;
-  matchResult: { winner: string | null; finalHp: any; totalTimeToCorrect: any } | null;
+  round: { index: number; total: number; timeLimit: number; startedAt: number; endsAt: number; window: WindowCandle[]; timeframe: string; anonymize: any; hp: any } | null;
+  roundResult: { correctTicker: string; guesses: any[]; damage: any; hp: any; winner: string | null; nextRoundAt: number | null } | null;
+  matchResult: { winner: string | null; finalHp: any; roundsWon: any; totalTimeToCorrect: any } | null;
   myGuess: string | null;
+  myGuessLocked: boolean;
   guesses: Guess[];
+  guessActivity: Record<string, number>;
+  rematchReady: Record<string, boolean>;
   error: string | null;
 };
 
@@ -28,7 +33,8 @@ export function useMatch(matchId: string, displayName: string) {
   const wsRef = useRef<WebSocket | null>(null);
   const [state, setState] = useState<MatchState>({
     connected: false, joined: false, playerId: null, players: [], config: null,
-    phase: "lobby", round: null, roundResult: null, matchResult: null, myGuess: null, guesses: [], error: null,
+    phase: "lobby", round: null, roundResult: null, matchResult: null, myGuess: null, myGuessLocked: false,
+    guesses: [], guessActivity: {}, rematchReady: {}, error: null,
   });
 
   useEffect(() => {
@@ -42,6 +48,7 @@ export function useMatch(matchId: string, displayName: string) {
       sessionId = crypto.randomUUID();
       window.localStorage.setItem(storageKey, sessionId);
     }
+    window.localStorage.setItem(`${storageKey}:name`, displayName);
 
     const connect = () => {
       const proto = window.location.protocol === "https:" ? "wss" : "ws";
@@ -69,13 +76,28 @@ export function useMatch(matchId: string, displayName: string) {
             case "playerDisconnected": return { ...s, players: s.players.map((p) => p.id === payload.playerId ? { ...p, connected: false } : p) };
             case "playerLeft": return { ...s, players: payload.players, config: payload.config || s.config };
             case "matchStart": return { ...s, phase: "playing", config: payload.config, roundResult: null, matchResult: null };
-            case "roundStart": return { ...s, phase: "playing", round: { index: payload.roundIndex, total: payload.totalRounds, timeLimit: payload.timeLimit, window: payload.window, timeframe: payload.timeframe, anonymize: payload.anonymize, hp: payload.hp }, roundResult: null, myGuess: null, guesses: [] };
-            case "guessAck": return { ...s, myGuess: payload.guess };
+            case "roundStart": return {
+              ...s, phase: "playing",
+              round: { index: payload.roundIndex, total: payload.totalRounds, timeLimit: payload.timeLimit, startedAt: payload.startedAt, endsAt: payload.endsAt, window: payload.window, timeframe: payload.timeframe, anonymize: payload.anonymize, hp: payload.hp },
+              roundResult: null, myGuess: null, myGuessLocked: false, guesses: [], guessActivity: {},
+            };
+            case "guessAck": return { ...s, myGuess: payload.guess, myGuessLocked: payload.locked };
             case "guessSubmitted": return s.guesses.some((g) => g.playerId === payload.playerId)
               ? s
               : { ...s, guesses: [...s.guesses, { playerId: payload.playerId, name: payload.name, guess: payload.guess, guessAt: payload.guessAt }] };
-            case "roundEnd": return { ...s, phase: "roundEnd", roundResult: { correctTicker: payload.correctTicker, guesses: payload.guesses, damage: payload.damage, hp: payload.hp, winner: payload.winner } };
-            case "matchEnd": return { ...s, phase: "ended", matchResult: { winner: payload.winner, finalHp: payload.finalHp, totalTimeToCorrect: payload.totalTimeToCorrect } };
+            case "guessActivity": return { ...s, guessActivity: { ...s.guessActivity, [payload.playerId]: payload.count } };
+            case "hpUpdate": return {
+              ...s,
+              round: s.round ? { ...s.round, hp: payload.hp } : null,
+            };
+            case "roundEnd": return { ...s, phase: "roundEnd", roundResult: { correctTicker: payload.correctTicker, guesses: payload.guesses, damage: payload.damage, hp: payload.hp, winner: payload.winner, nextRoundAt: payload.nextRoundAt } };
+            case "matchEnd": return { ...s, phase: "ended", matchResult: { winner: payload.winner, finalHp: payload.finalHp, roundsWon: payload.roundsWon, totalTimeToCorrect: payload.totalTimeToCorrect } };
+            case "rematchState": return { ...s, rematchReady: Object.fromEntries(payload.players.map((p: { id: string; ready: boolean }) => [p.id, p.ready])) };
+            case "rematchLobby": return {
+              ...s, phase: "lobby", players: payload.players, config: payload.config,
+              round: null, roundResult: null, matchResult: null, myGuess: null, myGuessLocked: false,
+              guesses: [], guessActivity: {}, rematchReady: {},
+            };
             case "error": return { ...s, error: payload.message };
             default: return s;
           }
@@ -107,6 +129,7 @@ export function useMatch(matchId: string, displayName: string) {
   }, []);
   const setReady = useCallback((ready: boolean) => send({ type: "ready", ready }), [send]);
   const submitGuess = useCallback((ticker: string) => send({ type: "guess", ticker }), [send]);
+  const setRematchReady = useCallback((ready: boolean) => send({ type: "rematch", ready }), [send]);
 
-  return { state, setReady, submitGuess };
+  return { state, setReady, submitGuess, setRematchReady };
 }

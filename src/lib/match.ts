@@ -1,5 +1,5 @@
 import { sampleCurrentWindow, type Candle } from "./chart";
-import { getUniverse } from "./universes";
+import { CUSTOM_UNIVERSE, getUniverse } from "./universes";
 import { randomUUID } from "crypto";
 
 export type MatchConfig = {
@@ -7,9 +7,19 @@ export type MatchConfig = {
   rounds: number;
   roundTimer: number; // seconds
   startingHp: number;
+  customTickers: string[];
+  guessMode: "single" | "unlimited";
+  wrongGuessPenalty: number;
   anonymizeDate: boolean;
   anonymizePrice: boolean;
   timeframe: string;
+};
+
+export type RoundGuess = {
+  guess: string;
+  guessAt: number;
+  correct: boolean;
+  penalty: number;
 };
 
 export type Player = {
@@ -23,6 +33,10 @@ export type Player = {
   guess: string | null;
   guessAt: number | null;
   correctTime: number | null; // seconds to correct, null if wrong/no guess
+  guesses: RoundGuess[];
+  totalCorrectTime: number;
+  roundsWon: number;
+  rematch: boolean;
 };
 
 export type Match = {
@@ -40,7 +54,9 @@ export type Match = {
 };
 
 export const MAX_DAMAGE = 35;
-const DISCONNECT_GRACE_MS = 2 * 60 * 1000;
+// Mobile players commonly leave a tab while switching apps; preserve their slot
+// long enough for a realistic return on the same browser.
+const DISCONNECT_GRACE_MS = 30 * 60 * 1000;
 const EMPTY_MATCH_TTL_MS = 30 * 60 * 1000;
 const ENDED_MATCH_TTL_MS = 15 * 60 * 1000;
 
@@ -94,7 +110,8 @@ export function joinPlayer(
     sessionId,
     name: name.slice(0, 20) || "Player",
     ready: false, hp: m.config.startingHp, ws, disconnectTimer: null,
-    guess: null, guessAt: null, correctTime: null,
+    guess: null, guessAt: null, correctTime: null, guesses: [],
+    totalCorrectTime: 0, roundsWon: 0, rematch: false,
   };
   m.players.push(p);
   return { player: p, reconnected: false };
@@ -137,9 +154,11 @@ async function startRound(m: Match) {
   if (m.roundIndex > m.config.rounds) return endMatch(m);
   m.state = "playing";
   m.roundResult = null;
-  m.players.forEach((p) => { p.guess = null; p.guessAt = null; p.correctTime = null; });
+  m.players.forEach((p) => { p.guess = null; p.guessAt = null; p.correctTime = null; p.guesses = []; });
   try {
-    const universe = await getUniverse(m.config.universe);
+    const universe = m.config.universe === CUSTOM_UNIVERSE
+      ? m.config.customTickers
+      : await getUniverse(m.config.universe);
     const { ticker, candles } = await sampleCurrentWindow(universe);
     m.current = { ticker, candles, startedAt: Date.now() };
     broadcast(m, "roundStart", {
@@ -149,6 +168,8 @@ async function startRound(m: Match) {
       roundIndex: m.roundIndex,
       totalRounds: m.config.rounds,
       timeLimit: m.config.roundTimer,
+      startedAt: m.current.startedAt,
+      endsAt: m.current.startedAt + m.config.roundTimer * 1000,
       hp: hpMap(m),
     });
     m.timer = setTimeout(() => endRound(m), m.config.roundTimer * 1000);
@@ -169,11 +190,12 @@ function endRound(m: Match) {
   if (m.timer) clearTimeout(m.timer);
   m.state = "roundEnd";
   const correct = m.current?.ticker;
-  const damage: any = {};
+  const damage: Record<string, number> = {};
   m.players.forEach((p) => {
     if (p.guess === correct && p.guessAt != null) {
       const secs = (p.guessAt - m.current!.startedAt) / 1000;
       p.correctTime = secs;
+      p.totalCorrectTime += secs;
       const dmg = Math.round(((m.config.roundTimer - secs) / m.config.roundTimer) * MAX_DAMAGE);
       damage[p.id] = Math.max(0, dmg);
     } else {
@@ -186,17 +208,24 @@ function endRound(m: Match) {
       m.players.forEach((o) => { if (o.id !== p.id) o.hp = Math.max(0, o.hp - damage[p.id]); });
     }
   });
+  const roundWinners = m.players.filter((p) => damage[p.id] > 0);
+  roundWinners.forEach((p) => { p.roundsWon++; });
   const ko = m.players.find((p) => p.hp <= 0);
+  const nextRoundAt = Date.now() + 5000;
   m.roundResult = {
     correctTicker: correct,
-    guesses: m.players.map((p) => ({ id: p.id, guess: p.guess, guessAt: p.guessAt, correctTime: p.correctTime })),
+    guesses: m.players.map((p) => ({
+      id: p.id, guess: p.guess, guessAt: p.guessAt, correctTime: p.correctTime,
+      history: p.guesses,
+    })),
     damage,
     hp: hpMap(m),
-    winner: m.players.find((p) => damage[p.id] > 0)?.id || null,
+    winner: roundWinners[0]?.id || null,
+    nextRoundAt: ko ? null : nextRoundAt,
   };
   broadcast(m, "roundEnd", m.roundResult);
   if (ko) return endMatch(m);
-  m.intermission = setTimeout(() => startRound(m), 5000);
+  m.intermission = setTimeout(() => startRound(m), Math.max(0, nextRoundAt - Date.now()));
 }
 
 function endMatch(m: Match) {
@@ -207,8 +236,8 @@ function endMatch(m: Match) {
   m.matchResult = {
     winner,
     finalHp: hpMap(m),
-    roundsWon: {},
-    totalTimeToCorrect: m.players.reduce((a, p) => ({ ...a, [p.id]: (p.correctTime ?? 0) }), {}),
+    roundsWon: m.players.reduce((a, p) => ({ ...a, [p.id]: p.roundsWon }), {} as Record<string, number>),
+    totalTimeToCorrect: m.players.reduce((a, p) => ({ ...a, [p.id]: p.totalCorrectTime }), {} as Record<string, number>),
   };
   broadcast(m, "matchEnd", m.matchResult);
   scheduleCleanup(m, ENDED_MATCH_TTL_MS);
@@ -220,7 +249,7 @@ function determineWinner(m: Match): string | null {
   if (m.players.length < 2) return m.players[0]?.id ?? null;
   const [a, b] = m.players;
   if (a.hp !== b.hp) return a.hp > b.hp ? a.id : b.id;
-  const ta = a.correctTime ?? Infinity, tb = b.correctTime ?? Infinity;
+  const ta = a.totalCorrectTime || Infinity, tb = b.totalCorrectTime || Infinity;
   return ta < tb ? a.id : tb < ta ? b.id : null;
 }
 
@@ -240,14 +269,61 @@ export async function handleMessage(m: Match, p: Player, msg: any) {
   } else if (msg.type === "guess") {
     if (m.state !== "playing") return;
     if (p.guess != null) return;
-    p.guess = (msg.ticker || "").toUpperCase();
-    p.guessAt = Date.now();
-    send(p, "guessAck", { guess: p.guess });
-    broadcast(m, "guessSubmitted", { playerId: p.id, name: p.name, guess: p.guess, guessAt: p.guessAt });
+    const guess = (msg.ticker || "").toUpperCase();
+    const allowedTickers = m.config.universe === CUSTOM_UNIVERSE
+      ? m.config.customTickers
+      : await getUniverse(m.config.universe);
+    if (!allowedTickers.includes(guess)) {
+      send(p, "error", { message: "Choose a ticker from this match’s universe." });
+      return;
+    }
+    const at = Date.now();
     const correct = m.current?.ticker;
-    const bothSubmitted = m.players.every((x) => x.guess != null);
-    const someoneCorrect = m.players.some((x) => x.guess === correct);
-    if (someoneCorrect || bothSubmitted) endRound(m);
+    const isCorrect = guess === correct;
+    const penalty = isCorrect ? 0 : m.config.wrongGuessPenalty;
+    if (m.config.guessMode === "single" || isCorrect) {
+      p.guess = guess;
+      p.guessAt = at;
+    }
+    p.guesses.push({ guess, guessAt: at, correct: isCorrect, penalty });
+    if (penalty) {
+      p.hp = Math.max(0, p.hp - penalty);
+      broadcast(m, "hpUpdate", { hp: hpMap(m), playerId: p.id, penalty });
+    }
+    send(p, "guessAck", { guess, locked: p.guess != null, penalty });
+    if (m.config.guessMode === "single") {
+      broadcast(m, "guessSubmitted", { playerId: p.id, name: p.name, guess, guessAt: at });
+      if (m.players.every((x) => x.guess != null)) endRound(m);
+    } else {
+      broadcast(m, "guessActivity", { playerId: p.id, name: p.name, count: p.guesses.length });
+    }
+    if (p.hp <= 0) endRound(m);
+  } else if (msg.type === "rematch") {
+    if (m.state !== "ended") return;
+    p.rematch = !!msg.ready;
+    broadcast(m, "rematchState", {
+      players: m.players.map((x) => ({ id: x.id, ready: x.rematch })),
+    });
+    if (m.players.length === 2 && m.players.every((x) => x.rematch && x.ws?.readyState === 1)) {
+      if (m.cleanupTimer) clearTimeout(m.cleanupTimer);
+      m.state = "lobby";
+      m.roundIndex = 0;
+      m.current = null;
+      m.roundResult = null;
+      m.matchResult = null;
+      m.players.forEach((x) => {
+        x.ready = false;
+        x.rematch = false;
+        x.hp = m.config.startingHp;
+        x.guess = null;
+        x.guessAt = null;
+        x.correctTime = null;
+        x.guesses = [];
+        x.totalCorrectTime = 0;
+        x.roundsWon = 0;
+      });
+      broadcast(m, "rematchLobby", lobbyState(m));
+    }
   }
 }
 
@@ -264,11 +340,17 @@ export function syncPlayer(m: Match, p: Player) {
       roundIndex: m.roundIndex,
       totalRounds: m.config.rounds,
       timeLimit: Math.max(0, Math.ceil(m.config.roundTimer - elapsed)),
+      startedAt: m.current.startedAt,
+      endsAt: m.current.startedAt + m.config.roundTimer * 1000,
       hp: hpMap(m),
     });
-    m.players.filter((x) => x.guess != null).forEach((x) => send(p, "guessSubmitted", {
-      playerId: x.id, name: x.name, guess: x.guess, guessAt: x.guessAt,
-    }));
+    m.players.forEach((x) => {
+      if (m.config.guessMode === "single" && x.guess != null) {
+        send(p, "guessSubmitted", { playerId: x.id, name: x.name, guess: x.guess, guessAt: x.guessAt });
+      } else if (m.config.guessMode === "unlimited" && x.guesses.length) {
+        send(p, "guessActivity", { playerId: x.id, name: x.name, count: x.guesses.length });
+      }
+    });
     if (p.guess) send(p, "guessAck", { guess: p.guess });
   } else if (m.state === "roundEnd" && m.roundResult) {
     send(p, "roundEnd", m.roundResult);

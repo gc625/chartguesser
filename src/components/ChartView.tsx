@@ -48,5 +48,5 @@ export default function ChartView({
     return () => { observer.disconnect(); chart.remove(); };
   }, [candles, anonymizeDate, anonymizePrice]);
 
-  return <div ref={ref} className="h-full min-h-0 w-full min-w-0 overflow-hidden rounded-xl" />;
+  return <div ref={ref} className="h-full min-h-0 w-full min-w-0 touch-none overflow-hidden rounded-xl border border-slate-800/80" />;
 }
