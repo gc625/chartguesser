@@ -3,7 +3,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 const UNIVERSES = ["S&P 500", "Nasdaq 100", "Dow 30"];
-const TIMEFRAMES = ["Daily", "Weekly", "Monthly"];
 
 export default function Home() {
   const router = useRouter();
@@ -11,9 +10,8 @@ export default function Home() {
   const [rounds, setRounds] = useState(5);
   const [roundTimer, setRoundTimer] = useState(60);
   const [startingHp, setStartingHp] = useState(100);
-  const [anonymizeDate, setAnonymizeDate] = useState(true);
+  const [anonymizeDate, setAnonymizeDate] = useState(false);
   const [anonymizePrice, setAnonymizePrice] = useState(false);
-  const [timeframe, setTimeframe] = useState("Daily");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -24,7 +22,7 @@ export default function Home() {
       const res = await fetch("/api/match", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ universe, rounds, roundTimer, startingHp, anonymizeDate, anonymizePrice, timeframe }),
+        body: JSON.stringify({ universe, rounds, roundTimer, startingHp, anonymizeDate, anonymizePrice }),
       });
       if (!res.ok) throw new Error("Could not create the match.");
       const data = await res.json();
@@ -77,12 +75,6 @@ export default function Home() {
               <div className={label}>Starting HP</div>
               <select className={input} value={startingHp} onChange={(e) => setStartingHp(Number(e.target.value))}>
                 {[50, 100, 150, 200].map((n) => <option key={n} value={n}>{n}</option>)}
-              </select>
-            </div>
-            <div>
-              <div className={label}>Timeframe</div>
-              <select className={input} value={timeframe} onChange={(e) => setTimeframe(e.target.value)}>
-                {TIMEFRAMES.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </div>
           </div>

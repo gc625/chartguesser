@@ -8,9 +8,9 @@ export async function POST(req: NextRequest) {
     rounds: Number(body.rounds) || 5,
     roundTimer: Number(body.roundTimer) || 60,
     startingHp: Number(body.startingHp) || 100,
-    anonymizeDate: body.anonymizeDate !== false,
+    anonymizeDate: body.anonymizeDate === true,
     anonymizePrice: body.anonymizePrice === true,
-    timeframe: body.timeframe || "Daily",
+    timeframe: "Daily",
   };
   const m = createMatch(config);
   return NextResponse.json({ id: m.id, config: m.config });

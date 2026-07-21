@@ -9,7 +9,8 @@ const intervalMap: Record<string, "1d" | "1wk" | "1mo"> = {
 
 export type Candle = { t: number; o: number; h: number; l: number; c: number; v: number };
 
-const cache = new Map<string, Candle[]>();
+const CACHE_TTL_MS = 15 * 60 * 1000;
+const cache = new Map<string, { candles: Candle[]; fetchedAt: number }>();
 
 export async function getCandles(
   ticker: string,
@@ -17,8 +18,10 @@ export async function getCandles(
 ): Promise<Candle[]> {
   const interval = intervalMap[timeframe] || "1d";
   const key = `${ticker}:${interval}`;
-  if (cache.has(key)) return cache.get(key)!;
-  const period1 = new Date("2000-01-01");
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) return cached.candles;
+  const period1 = new Date();
+  period1.setFullYear(period1.getFullYear() - 6);
   const period2 = new Date();
   try {
     const r: any = await withTimeout(yf.chart(ticker, { period1, period2, interval }), 8000);
@@ -31,7 +34,7 @@ export async function getCandles(
         o: q.open, h: q.high, l: q.low, c: q.close, v: q.volume ?? 0,
       }));
     if (candles.length < 50) throw new Error("insufficient");
-    cache.set(key, candles);
+    cache.set(key, { candles, fetchedAt: Date.now() });
     return candles;
   } catch (e) {
     cache.delete(key);
@@ -46,22 +49,19 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
-export async function sampleWindow(
+export async function sampleCurrentWindow(
   universe: string[],
-  timeframe: string,
-  windowSize = 200,
-  excludeRecentDays = 90
+  years = 5,
 ): Promise<{ ticker: string; candles: Candle[] }> {
-  const daysPerCandle = timeframe === "Daily" ? 1 : timeframe === "Weekly" ? 7 : 30;
-  const excludeCount = Math.ceil(excludeRecentDays / daysPerCandle);
   for (let attempt = 0; attempt < 8; attempt++) {
     const ticker = universe[Math.floor(Math.random() * universe.length)];
     try {
-      const all = await getCandles(ticker, timeframe);
-      const maxEnd = all.length - excludeCount;
-      if (maxEnd <= windowSize) throw new Error("insufficient range");
-      const end = Math.floor(Math.random() * (maxEnd - windowSize)) + windowSize;
-      const candles = all.slice(end - windowSize, end);
+      const all = await getCandles(ticker, "Daily");
+      const latest = all.at(-1)?.t;
+      if (!latest) throw new Error("insufficient range");
+      const cutoff = new Date(latest);
+      cutoff.setFullYear(cutoff.getFullYear() - years);
+      const candles = all.filter((c) => c.t >= cutoff.getTime());
       if (candles.length >= 50) return { ticker, candles };
     } catch {
       // try another ticker

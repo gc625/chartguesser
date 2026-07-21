@@ -1,4 +1,4 @@
-import { sampleWindow, type Candle } from "./chart";
+import { sampleCurrentWindow, type Candle } from "./chart";
 import { getUniverse } from "./universes";
 import { randomUUID } from "crypto";
 
@@ -125,6 +125,7 @@ function anonymize(candles: Candle[], m: Match): any[] {
     const norm = (x: number) => (anonymizePrice && max > min ? ((x - min) / (max - min)) * 100 : x);
     return {
       i: anonymizeDate ? i : c.t,
+      t: c.t,
       o: norm(c.o), h: norm(c.h), l: norm(c.l), c: norm(c.c),
       v: anonymizePrice ? c.v : c.v,
     };
@@ -139,11 +140,11 @@ async function startRound(m: Match) {
   m.players.forEach((p) => { p.guess = null; p.guessAt = null; p.correctTime = null; });
   try {
     const universe = await getUniverse(m.config.universe);
-    const { ticker, candles } = await sampleWindow(universe, m.config.timeframe);
+    const { ticker, candles } = await sampleCurrentWindow(universe);
     m.current = { ticker, candles, startedAt: Date.now() };
     broadcast(m, "roundStart", {
       window: anonymize(candles, m),
-      timeframe: m.config.timeframe,
+      timeframe: "Daily",
       anonymize: { date: m.config.anonymizeDate, price: m.config.anonymizePrice },
       roundIndex: m.roundIndex,
       totalRounds: m.config.rounds,
@@ -258,7 +259,7 @@ export function syncPlayer(m: Match, p: Player) {
     send(p, "matchStart", { config: m.config });
     send(p, "roundStart", {
       window: anonymize(m.current.candles, m),
-      timeframe: m.config.timeframe,
+      timeframe: "Daily",
       anonymize: { date: m.config.anonymizeDate, price: m.config.anonymizePrice },
       roundIndex: m.roundIndex,
       totalRounds: m.config.rounds,

@@ -6,7 +6,7 @@ export type MatchConfig = {
   universe: string; rounds: number; roundTimer: number; startingHp: number;
   anonymizeDate: boolean; anonymizePrice: boolean; timeframe: string;
 };
-export type WindowCandle = { i: number; o: number; h: number; l: number; c: number; v: number };
+export type WindowCandle = { i: number; t: number; o: number; h: number; l: number; c: number; v: number };
 
 export type Guess = { playerId: string; name: string; guess: string; guessAt: number };
 export type MatchState = {

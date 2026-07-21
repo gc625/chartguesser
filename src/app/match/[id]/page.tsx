@@ -72,8 +72,23 @@ function RoundTimer({ seconds, active }: { seconds: number; active: boolean }) {
   );
 }
 
+const CHART_RANGES = ["1M", "YTD", "1Y", "5Y"] as const;
+type ChartRange = typeof CHART_RANGES[number];
+
+function candlesForRange(candles: import("@/lib/useMatch").WindowCandle[], range: ChartRange) {
+  if (!candles.length || range === "5Y") return candles;
+  const latest = new Date(candles[candles.length - 1].t);
+  const cutoff = new Date(latest);
+  if (range === "1M") cutoff.setMonth(cutoff.getMonth() - 1);
+  if (range === "YTD") cutoff.setMonth(0, 1);
+  if (range === "YTD") cutoff.setHours(0, 0, 0, 0);
+  if (range === "1Y") cutoff.setFullYear(cutoff.getFullYear() - 1);
+  return candles.filter((c) => c.t >= cutoff.getTime());
+}
+
 function Game({ matchId, displayName }: { matchId: string; displayName: string }) {
   const { state, setReady, submitGuess } = useMatch(matchId, displayName);
+  const [chartRange, setChartRange] = useState<ChartRange>("1Y");
   const me = state.players.find((p) => p.id === state.playerId);
   const opp = state.players.find((p) => p.id !== state.playerId);
   const maxHp = state.config?.startingHp || 100;
@@ -117,7 +132,7 @@ function Game({ matchId, displayName }: { matchId: string; displayName: string }
             <div>Rounds: {state.config.rounds}</div>
             <div>Timer: {state.config.roundTimer}s</div>
             <div>HP: {state.config.startingHp}</div>
-            <div>Timeframe: {state.config.timeframe}</div>
+            <div>Chart: Latest daily data</div>
             <div>Date hidden: {state.config.anonymizeDate ? "yes" : "no"} · Price hidden: {state.config.anonymizePrice ? "yes" : "no"}</div>
           </div>
         )}
@@ -151,14 +166,27 @@ function Game({ matchId, displayName }: { matchId: string; displayName: string }
         <span className="text-xs text-zinc-400">Round {round?.index}/{round?.total}</span>
         <span className="text-xs text-zinc-500">·</span>
         <RoundTimer key={round?.index ?? 0} seconds={round?.timeLimit ?? 0} active={state.phase === "playing"} />
-        <span className="ml-auto text-xs text-zinc-500 truncate max-w-[45vw]">{state.config?.universe} · {state.config?.timeframe}</span>
+        <span className="ml-auto text-xs text-zinc-500 truncate max-w-[45vw]">{state.config?.universe} · Daily · {chartRange}</span>
         <span className={`size-2 rounded-full ${state.connected ? "bg-emerald-500" : "bg-rose-500"}`} title={state.connected ? "Connected" : "Disconnected"} />
       </header>
 
       <main className="md:flex-1 md:flex md:min-h-0">
         <section className="relative h-[58svh] min-h-[340px] w-full p-2 md:h-auto md:min-h-0 md:min-w-0 md:flex-1">
           {round ? (
-            <ChartView candles={round.window} anonymizeDate={round.anonymize.date} anonymizePrice={round.anonymize.price} />
+            <>
+              <div className="absolute left-4 top-4 z-10 flex rounded-lg border border-zinc-700 bg-zinc-950/90 p-1 shadow-lg backdrop-blur">
+                {CHART_RANGES.map((range) => (
+                  <button
+                    key={range}
+                    onClick={() => setChartRange(range)}
+                    className={`min-h-9 rounded-md px-3 text-xs font-semibold transition-colors ${chartRange === range ? "bg-emerald-600 text-white" : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"}`}
+                  >
+                    {range}
+                  </button>
+                ))}
+              </div>
+              <ChartView candles={candlesForRange(round.window, chartRange)} anonymizeDate={round.anonymize.date} anonymizePrice={round.anonymize.price} />
+            </>
           ) : (
             <div className="absolute inset-0 flex items-center justify-center text-zinc-500 text-sm">
               <div className="flex flex-col items-center gap-2">
