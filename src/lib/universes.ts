@@ -30,6 +30,22 @@ const DOW_30 = [
   "MRK", "MSFT", "NKE", "PG", "CRM", "TRV", "UNH", "VZ", "V", "WMT",
 ];
 
+// A local Nasdaq-100 catalog avoids accepting arbitrary uppercase text from
+// a scraped page. A universe must never silently fall back to a different
+// index, since that changes game answers.
+const NASDAQ_100 = [
+  "AAPL", "ABNB", "ADBE", "ADI", "ADP", "ADSK", "AEP", "AMAT", "AMD", "AMGN",
+  "AMZN", "APP", "ARM", "ASML", "AVGO", "AZN", "BIIB", "BKNG", "BKR", "CCEP",
+  "CDNS", "CEG", "CHTR", "CMCSA", "COST", "CPRT", "CRWD", "CSCO", "CSX", "CTAS",
+  "CTSH", "DASH", "DDOG", "DXCM", "EA", "EXC", "FANG", "FAST", "FTNT", "GFS",
+  "GILD", "GOOG", "GOOGL", "HON", "IDXX", "INTC", "INTU", "ISRG", "KDP", "KHC",
+  "KLAC", "LRCX", "LULU", "MAR", "MCHP", "MDLZ", "MELI", "META", "MNST", "MPWR",
+  "MRVL", "MSFT", "MU", "NFLX", "NVDA", "NXPI", "ODFL", "ORLY", "PANW", "PAYX",
+  "PCAR", "PDD", "PEP", "PLTR", "PYPL", "QCOM", "REGN", "ROP", "ROST", "SBUX",
+  "SMCI", "SNPS", "TEAM", "TMUS", "TSLA", "TXN", "VRSK", "VRTX", "WBD", "WDAY",
+  "XEL", "ZS",
+];
+
 export const AI_BOTTLENECK_CATEGORIES = aiBottlenecks.categories;
 const AI_BOTTLENECKS = normalizeTickers(aiBottlenecks.categories.flatMap((category) => category.tickers));
 
@@ -60,15 +76,10 @@ export async function getUniverse(name: string): Promise<string[]> {
       );
       cache[name] = t.length > 50 ? t : DOW_30;
     } else if (name === "Nasdaq 100") {
-      const t = await fetchTickers(
-        "https://en.wikipedia.org/wiki/Nasdaq-100",
-        />([A-Z]{1,5}(\.[A-Z]{1,2})?)</g
-      );
-      const filtered = t.filter((x) => x.length >= 1 && x.length <= 5 && !["I", "A"].includes(x));
-      cache[name] = filtered.length > 50 ? [...new Set(filtered)] : DOW_30;
+      cache[name] = NASDAQ_100;
     }
   } catch {
-    cache[name] = DOW_30;
+    cache[name] = name === "Nasdaq 100" ? NASDAQ_100 : DOW_30;
   }
   return cache[name] || DOW_30;
 }
