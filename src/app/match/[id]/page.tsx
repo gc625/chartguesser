@@ -319,7 +319,7 @@ function Game({ matchId, displayName }: { matchId: string; displayName: string }
               return (
                 <div key={i} className={`flex min-w-0 items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm ${mine ? "border-cyan-400/20 bg-cyan-400/[.06]" : "border-slate-700 bg-slate-900/70"}`}>
                   <span className="truncate text-slate-300">{g.name}{mine ? " (you)" : ""}</span>
-                  <span className="shrink-0 font-mono font-semibold">{g.guess}</span>
+                  <span className="shrink-0 text-xs text-slate-500">Submitted</span>
                 </div>
               );
             })}

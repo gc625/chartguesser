@@ -48,6 +48,7 @@ export type Match = {
   players: Player[];
   state: "lobby" | "playing" | "roundEnd" | "ended";
   roundIndex: number;
+  usedTickers: Set<string>;
   current: { ticker: string; candles: Candle[]; startedAt: number } | null;
   timer: any;
   intermission: any;
@@ -69,7 +70,7 @@ const matches: Map<string, Match> = (globalThis as any).__cg_matches ??= new Map
 export function createMatch(config: MatchConfig): Match {
   const id = randomUUID().replaceAll("-", "").slice(0, 10);
   const m: Match = {
-    id, config, players: [], state: "lobby", roundIndex: 0, current: null,
+    id, config, players: [], state: "lobby", roundIndex: 0, usedTickers: new Set(), current: null,
     timer: null, intermission: null, cleanupTimer: null,
     roundResult: null, matchResult: null, shareRounds: [],
   };
@@ -165,7 +166,10 @@ async function startRound(m: Match) {
       : m.config.universe === CUSTOM_UNIVERSE
         ? m.config.customTickers
         : await getUniverse(m.config.universe);
-    const { ticker, candles } = await sampleCurrentWindow(universe);
+    const availableTickers = universe.filter((ticker) => !m.usedTickers.has(ticker));
+    if (!availableTickers.length) throw new Error("no unused tickers remain");
+    const { ticker, candles } = await sampleCurrentWindow(availableTickers);
+    m.usedTickers.add(ticker);
     m.current = { ticker, candles, startedAt: Date.now() };
     broadcast(m, "roundStart", {
       window: anonymize(candles, m),
@@ -305,7 +309,7 @@ export async function handleMessage(m: Match, p: Player, msg: any) {
     }
     send(p, "guessAck", { guess, locked: p.guess != null, penalty });
     if (m.config.guessMode === "single") {
-      broadcast(m, "guessSubmitted", { playerId: p.id, name: p.name, guess, guessAt: at });
+      broadcast(m, "guessSubmitted", { playerId: p.id, name: p.name, guessAt: at });
       if (m.players.every((x) => x.guess != null)) endRound(m);
     } else {
       broadcast(m, "guessActivity", { playerId: p.id, name: p.name, count: p.guesses.length });
@@ -321,6 +325,7 @@ export async function handleMessage(m: Match, p: Player, msg: any) {
       if (m.cleanupTimer) clearTimeout(m.cleanupTimer);
       m.state = "lobby";
       m.roundIndex = 0;
+      m.usedTickers.clear();
       m.current = null;
       m.roundResult = null;
       m.matchResult = null;
@@ -360,7 +365,7 @@ export function syncPlayer(m: Match, p: Player) {
     });
     m.players.forEach((x) => {
       if (m.config.guessMode === "single" && x.guess != null) {
-        send(p, "guessSubmitted", { playerId: x.id, name: x.name, guess: x.guess, guessAt: x.guessAt });
+        send(p, "guessSubmitted", { playerId: x.id, name: x.name, guessAt: x.guessAt });
       } else if (m.config.guessMode === "unlimited" && x.guesses.length) {
         send(p, "guessActivity", { playerId: x.id, name: x.name, count: x.guesses.length });
       }

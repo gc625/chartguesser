@@ -13,7 +13,7 @@ export type MatchConfig = {
 };
 export type WindowCandle = { i: number; t: number; o: number; h: number; l: number; c: number; v: number };
 
-export type Guess = { playerId: string; name: string; guess: string; guessAt: number };
+export type Guess = { playerId: string; name: string; guessAt: number };
 export type MatchState = {
   connected: boolean;
   joined: boolean;
@@ -93,7 +93,7 @@ export function useMatch(matchId: string, displayName: string) {
             case "guessAck": return { ...s, myGuess: payload.guess, myGuessLocked: payload.locked };
             case "guessSubmitted": return s.guesses.some((g) => g.playerId === payload.playerId)
               ? s
-              : { ...s, guesses: [...s.guesses, { playerId: payload.playerId, name: payload.name, guess: payload.guess, guessAt: payload.guessAt }] };
+              : { ...s, guesses: [...s.guesses, { playerId: payload.playerId, name: payload.name, guessAt: payload.guessAt }] };
             case "guessActivity": return { ...s, guessActivity: { ...s.guessActivity, [payload.playerId]: payload.count } };
             case "hpUpdate": return {
               ...s,
