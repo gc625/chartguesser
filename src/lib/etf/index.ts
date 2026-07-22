@@ -1,12 +1,22 @@
 import { getCachedEtf, setCachedEtf } from "./cache";
 import { parseInvescoJson, parseIsharesCsv, parseVanEckHtml } from "./parsers";
 import { UnsupportedEtfError, type EtfConstituents } from "./types";
+import { getUniverse } from "@/lib/universes";
 
 export type { EtfConstituents } from "./types";
 export { UnsupportedEtfError } from "./types";
 
 const FRESH_MS = 24 * 60 * 60 * 1000;
 const headers = { "User-Agent": "ChartGuesser/1.0 universe-resolver" };
+
+const INDEX_FUNDS: Record<string, { name: string; universe: string; issuer: string }> = {
+  SPY: { name: "SPDR S&P 500 ETF Trust", universe: "S&P 500", issuer: "State Street" },
+  VOO: { name: "Vanguard S&P 500 ETF", universe: "S&P 500", issuer: "Vanguard" },
+  IVV: { name: "iShares Core S&P 500 ETF", universe: "S&P 500", issuer: "iShares" },
+  QQQ: { name: "Invesco QQQ Trust", universe: "Nasdaq 100", issuer: "Invesco" },
+  QQQM: { name: "Invesco NASDAQ 100 ETF", universe: "Nasdaq 100", issuer: "Invesco" },
+  DIA: { name: "SPDR Dow Jones Industrial Average ETF Trust", universe: "Dow 30", issuer: "State Street" },
+};
 
 const ISHARES: Record<string, {
   name: string;
@@ -22,6 +32,17 @@ const ISHARES: Record<string, {
       "AMD", "NVDA", "MU", "AVGO", "INTC", "AMAT", "KLAC", "TSM", "LRCX", "TXN",
       "MRVL", "ADI", "NXPI", "MPWR", "QCOM", "TER", "ASML", "MCHP", "ALAB", "ON",
       "CRDO", "ASX", "ENTG", "MTSI", "UMC", "RMBS", "NVMI", "STM", "ARM", "SWKS",
+    ],
+  },
+  IGV: {
+    name: "iShares Expanded Tech-Software Sector ETF",
+    url: "https://www.ishares.com/us/products/239771/ishares-north-american-techsoftware-etf/1467271812596.ajax?fileType=csv&fileName=IGV_holdings&dataType=fund",
+    fallbackAsOf: "2026-07-22",
+    fallbackTickers: [
+      "PLTR", "CRM", "ORCL", "ADBE", "NOW", "INTU", "PANW", "CRWD", "APP", "CDNS",
+      "SNPS", "FTNT", "RBLX", "WDAY", "ADSK", "DDOG", "MSTR", "TEAM", "NET", "HUBS",
+      "ZS", "MDB", "OKTA", "GEN", "DOCU", "DT", "MANH", "BSY", "PCOR", "ESTC",
+      "CYBR", "GTLB", "PATH", "S", "TENB", "QLYS", "CHKP", "NICE", "TOST", "U",
     ],
   },
 };
@@ -55,6 +76,19 @@ async function fetchChecked(url: string): Promise<Response> {
 }
 
 async function fetchLive(symbol: string): Promise<EtfConstituents> {
+  const indexFund = INDEX_FUNDS[symbol];
+  if (indexFund) {
+    const tickers = await getUniverse(indexFund.universe);
+    if (tickers.length < 2) throw new Error("No index constituents were found.");
+    return {
+      symbol,
+      name: indexFund.name,
+      issuer: indexFund.issuer,
+      sourceUrl: "https://en.wikipedia.org/",
+      tickers,
+    };
+  }
+
   const iShares = ISHARES[symbol];
   if (iShares) {
     try {

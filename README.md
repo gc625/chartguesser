@@ -57,10 +57,10 @@ Matches snapshot their exact ticker pool when they are created. Players can choo
 - Community lists: immutable anonymous lists stored in Postgres.
 - Private custom lists of 2–200 US-listed stock symbols.
 
-The free ETF resolver uses issuer-specific sources. SOXX and SMH have dated complete fallback snapshots because the iShares and VanEck sites can block automated requests; supported Invesco funds use its public DNG holdings endpoint. Unsupported or non-transparent ETFs return a clear error instead of an incomplete top-holdings list.
+The free ETF resolver supports SPY, VOO, IVV, QQQ, QQQM, and DIA through their tracked index universes. IGV, SOXX, and SMH use issuer feeds with dated fallback snapshots, while other supported Invesco funds use its public DNG holdings endpoint. Unsupported or non-transparent ETFs return a clear error instead of an incomplete top-holdings list.
 
 ## Persistent community lists
 
-Set `DATABASE_URL` to a managed Postgres database, such as Neon, before starting the service. Tables are created lazily at runtime; the equivalent schema is recorded in `db/migrations/001_universe_catalog.sql`.
+Set `DATABASE_URL` to a managed Postgres database, such as Neon, for a durable catalog. Tables are created lazily at runtime; the equivalent schema is recorded in `db/migrations/001_universe_catalog.sql`.
 
-Community submissions are anonymous, immutable, deduplicated, capped at 200 symbols, and rate-limited per process/IP. If Postgres is unavailable, built-in and private custom matches continue to work while community browsing and publishing are disabled.
+Community submissions are anonymous, immutable, deduplicated, capped at 200 symbols, and rate-limited per process/IP. Without `DATABASE_URL`, browsing and publishing use a process-local catalog that resets whenever the service restarts. A configured database that becomes unreachable still returns a temporary-unavailability error rather than showing an inconsistent fallback catalog.

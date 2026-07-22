@@ -14,6 +14,22 @@ export type CommunityList = {
 export class CommunityDatabaseUnavailableError extends Error {}
 export class DuplicateCommunityListError extends Error {}
 
+const memoryLists: Map<string, CommunityList & { contentHash: string }> =
+  (globalThis as typeof globalThis & {
+    __cg_community_lists?: Map<string, CommunityList & { contentHash: string }>;
+  }).__cg_community_lists ??= new Map();
+
+function publicList(list: CommunityList & { contentHash: string }): CommunityList {
+  return {
+    id: list.id,
+    name: list.name,
+    description: list.description,
+    tickers: list.tickers,
+    tickerCount: list.tickerCount,
+    createdAt: list.createdAt,
+  };
+}
+
 function fromRow(row: Record<string, unknown>): CommunityList {
   return {
     id: String(row.id),
@@ -26,6 +42,7 @@ function fromRow(row: Record<string, unknown>): CommunityList {
 }
 
 async function database() {
+  if (!getDatabase()) return null;
   try {
     if (!await ensureCatalogSchema()) throw new CommunityDatabaseUnavailableError();
     return getDatabase()!;
@@ -36,6 +53,11 @@ async function database() {
 
 export async function listCommunityLists(): Promise<CommunityList[]> {
   const sql = await database();
+  if (!sql) {
+    return [...memoryLists.values()]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(publicList);
+  }
   const rows = await sql`
     select id, name, description, tickers, ticker_count, created_at
     from community_lists order by created_at desc limit 100
@@ -46,6 +68,10 @@ export async function listCommunityLists(): Promise<CommunityList[]> {
 export async function getCommunityList(id: string): Promise<CommunityList | null> {
   if (!/^[a-f0-9]{12}$/.test(id)) return null;
   const sql = await database();
+  if (!sql) {
+    const list = memoryLists.get(id);
+    return list ? publicList(list) : null;
+  }
   const rows = await sql`
     select id, name, description, tickers, ticker_count, created_at
     from community_lists where id = ${id}
@@ -68,6 +94,22 @@ export async function createCommunityList(input: {
   const contentHash = createHash("sha256").update([...tickers].sort().join(",")).digest("hex");
   const id = randomUUID().replaceAll("-", "").slice(0, 12);
   const sql = await database();
+  if (!sql) {
+    if ([...memoryLists.values()].some((list) => list.contentHash === contentHash)) {
+      throw new DuplicateCommunityListError("That ticker list is already in the community catalog.");
+    }
+    const list = {
+      id,
+      name,
+      description,
+      tickers,
+      tickerCount: tickers.length,
+      createdAt: new Date().toISOString(),
+      contentHash,
+    };
+    memoryLists.set(id, list);
+    return publicList(list);
+  }
   try {
     const rows = await sql`
       insert into community_lists

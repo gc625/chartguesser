@@ -223,7 +223,7 @@ export default function Home() {
             {universeSource === "etf" && (
               <div className="mt-3 rounded-xl border border-slate-700 bg-slate-950/60 p-3">
                 <p className="text-sm font-medium">Play an ETF&apos;s constituents</p>
-                <p className="mt-1 text-xs text-slate-500">Official free feeds currently cover SOXX, SMH, and supported Invesco funds.</p>
+                <p className="mt-1 text-xs text-slate-500">Supports major index funds (SPY, VOO, IVV, QQQ, QQQM, DIA), IGV, SOXX, SMH, and other supported Invesco funds.</p>
                 <div className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                   <input
                     value={etfSymbol}
