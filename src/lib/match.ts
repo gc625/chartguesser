@@ -51,6 +51,7 @@ export type Match = {
   cleanupTimer: ReturnType<typeof setTimeout> | null;
   roundResult: any | null;
   matchResult: any | null;
+  shareRounds: { correctPlayerIds: string[]; attemptedPlayerIds: string[] }[];
 };
 
 export const MAX_DAMAGE = 35;
@@ -67,7 +68,7 @@ export function createMatch(config: MatchConfig): Match {
   const m: Match = {
     id, config, players: [], state: "lobby", roundIndex: 0, current: null,
     timer: null, intermission: null, cleanupTimer: null,
-    roundResult: null, matchResult: null,
+    roundResult: null, matchResult: null, shareRounds: [],
   };
   matches.set(id, m);
   scheduleCleanup(m, EMPTY_MATCH_TTL_MS);
@@ -210,6 +211,10 @@ function endRound(m: Match) {
   });
   const roundWinners = m.players.filter((p) => damage[p.id] > 0);
   roundWinners.forEach((p) => { p.roundsWon++; });
+  m.shareRounds.push({
+    correctPlayerIds: roundWinners.map((p) => p.id),
+    attemptedPlayerIds: m.players.filter((p) => p.guesses.length > 0).map((p) => p.id),
+  });
   const ko = m.players.find((p) => p.hp <= 0);
   const nextRoundAt = Date.now() + 5000;
   m.roundResult = {
@@ -238,6 +243,7 @@ function endMatch(m: Match) {
     finalHp: hpMap(m),
     roundsWon: m.players.reduce((a, p) => ({ ...a, [p.id]: p.roundsWon }), {} as Record<string, number>),
     totalTimeToCorrect: m.players.reduce((a, p) => ({ ...a, [p.id]: p.totalCorrectTime }), {} as Record<string, number>),
+    shareRounds: m.shareRounds,
   };
   broadcast(m, "matchEnd", m.matchResult);
   scheduleCleanup(m, ENDED_MATCH_TTL_MS);
@@ -311,6 +317,7 @@ export async function handleMessage(m: Match, p: Player, msg: any) {
       m.current = null;
       m.roundResult = null;
       m.matchResult = null;
+      m.shareRounds = [];
       m.players.forEach((x) => {
         x.ready = false;
         x.rematch = false;

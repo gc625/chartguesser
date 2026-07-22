@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { useMatch } from "@/lib/useMatch";
 import ChartView from "@/components/ChartView";
 import TickerAutocomplete from "@/components/TickerAutocomplete";
@@ -92,6 +93,7 @@ function Game({ matchId, displayName }: { matchId: string; displayName: string }
   const { state, setReady, submitGuess, setRematchReady } = useMatch(matchId, displayName);
   const [chartRange, setChartRange] = useState<ChartRange>("1Y");
   const [copied, setCopied] = useState(false);
+  const [shareStatus, setShareStatus] = useState<"idle" | "shared" | "copied">("idle");
   const me = state.players.find((p) => p.id === state.playerId);
   const opp = state.players.find((p) => p.id !== state.playerId);
   const maxHp = state.config?.startingHp || 100;
@@ -113,8 +115,56 @@ function Game({ matchId, displayName }: { matchId: string; displayName: string }
     setCopied(true); window.setTimeout(() => setCopied(false), 1800);
   }
 
+  async function shareResult() {
+    if (!state.matchResult || !me || !opp) return;
+    const tilesFor = (playerId: string) => state.matchResult!.shareRounds.map((round) => {
+      if (round.correctPlayerIds.includes(playerId)) return "🟩";
+      if (round.attemptedPlayerIds.includes(playerId)) return "🟥";
+      return "⬛";
+    }).join("");
+    const text = [
+      `ChartGuesser ⚔️ ${state.matchResult.roundsWon[me.id] ?? 0}–${state.matchResult.roundsWon[opp.id] ?? 0}`,
+      `You       ${tilesFor(me.id)}`,
+      `Opponent  ${tilesFor(opp.id)}`,
+      "",
+      "Think you can read the chart?",
+    ].join("\n");
+    const shareData = { title: "My ChartGuesser result", text, url: window.location.origin };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        setShareStatus("shared");
+        window.setTimeout(() => setShareStatus("idle"), 1800);
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+
+    const shareText = `${text}\n${window.location.origin}`;
+    try {
+      await navigator.clipboard.writeText(shareText);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = shareText; textarea.style.position = "fixed"; textarea.style.opacity = "0";
+      document.body.appendChild(textarea); textarea.select(); document.execCommand("copy"); textarea.remove();
+    }
+    setShareStatus("copied");
+    window.setTimeout(() => setShareStatus("idle"), 1800);
+  }
+
   if (state.error && state.phase === "lobby") {
-    return <Shell><div className="text-center text-rose-400">{state.error}</div></Shell>;
+    return <Shell>
+      <div className="panel p-6 text-center sm:p-8">
+        <div role="alert" className="text-rose-400">{state.error}</div>
+        {state.error === "Match not found" && (
+          <Link href="/" className="primary-button mt-5 inline-flex w-full items-center justify-center">
+            Create a new match
+          </Link>
+        )}
+      </div>
+    </Shell>;
   }
 
   // LOBBY
@@ -171,6 +221,25 @@ function Game({ matchId, displayName }: { matchId: string; displayName: string }
         <div className="mt-6 space-y-2 text-left">
           {[me, opp].filter(Boolean).map((p) => p && <div key={p.id} className="flex items-center justify-between rounded-xl bg-slate-900/80 px-4 py-3 text-sm"><span>{p.name}{p.id === me?.id ? " · You" : ""}</span><span className="font-mono text-slate-300">{state.matchResult?.finalHp?.[p.id] ?? 0} HP · {state.matchResult?.roundsWon?.[p.id] ?? 0} wins</span></div>)}
         </div>
+        {me && opp && state.matchResult && (
+          <div className="mt-5 rounded-xl border border-slate-700/70 bg-slate-950/70 p-4 text-left">
+            <div className="flex items-center justify-between gap-3">
+              <span className="eyebrow">Your result</span>
+              <span className="text-xs text-slate-500">🟩 correct · 🟥 missed · ⬛ skipped</span>
+            </div>
+            {[me, opp].map((player) => (
+              <div key={player.id} className="mt-3 flex items-center justify-between gap-3 text-sm">
+                <span className="text-slate-400">{player.id === me.id ? "You" : "Opponent"}</span>
+                <span className="font-mono tracking-wider" aria-label={`${player.id === me.id ? "Your" : "Opponent's"} round results`}>
+                  {state.matchResult!.shareRounds.map((round) => round.correctPlayerIds.includes(player.id) ? "🟩" : round.attemptedPlayerIds.includes(player.id) ? "🟥" : "⬛").join("")}
+                </span>
+              </div>
+            ))}
+            <button onClick={shareResult} className="secondary-button mt-4 w-full">
+              {shareStatus === "shared" ? "Shared!" : shareStatus === "copied" ? "Copied result!" : "Share result"}
+            </button>
+          </div>
+        )}
         <button onClick={() => setRematchReady(!state.rematchReady[state.playerId || ""])} className="primary-button mt-6 w-full">{state.rematchReady[state.playerId || ""] ? "Waiting for opponent…" : "Play again"}</button>
         <p className="mt-2 text-xs text-slate-500">Both players must choose play again.</p>
         <button onClick={() => window.location.href = "/"} className="mt-4 text-sm text-slate-400 underline underline-offset-4">Return home</button>

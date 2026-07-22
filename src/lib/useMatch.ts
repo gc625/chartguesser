@@ -20,7 +20,13 @@ export type MatchState = {
   phase: "lobby" | "playing" | "roundEnd" | "ended";
   round: { index: number; total: number; timeLimit: number; startedAt: number; endsAt: number; window: WindowCandle[]; timeframe: string; anonymize: any; hp: any } | null;
   roundResult: { correctTicker: string; guesses: any[]; damage: any; hp: any; winner: string | null; nextRoundAt: number | null } | null;
-  matchResult: { winner: string | null; finalHp: any; roundsWon: any; totalTimeToCorrect: any } | null;
+  matchResult: {
+    winner: string | null;
+    finalHp: Record<string, number>;
+    roundsWon: Record<string, number>;
+    totalTimeToCorrect: Record<string, number>;
+    shareRounds: { correctPlayerIds: string[]; attemptedPlayerIds: string[] }[];
+  } | null;
   myGuess: string | null;
   myGuessLocked: boolean;
   guesses: Guess[];
@@ -91,7 +97,17 @@ export function useMatch(matchId: string, displayName: string) {
               round: s.round ? { ...s.round, hp: payload.hp } : null,
             };
             case "roundEnd": return { ...s, phase: "roundEnd", roundResult: { correctTicker: payload.correctTicker, guesses: payload.guesses, damage: payload.damage, hp: payload.hp, winner: payload.winner, nextRoundAt: payload.nextRoundAt } };
-            case "matchEnd": return { ...s, phase: "ended", matchResult: { winner: payload.winner, finalHp: payload.finalHp, roundsWon: payload.roundsWon, totalTimeToCorrect: payload.totalTimeToCorrect } };
+            case "matchEnd": return {
+              ...s,
+              phase: "ended",
+              matchResult: {
+                winner: payload.winner,
+                finalHp: payload.finalHp,
+                roundsWon: payload.roundsWon,
+                totalTimeToCorrect: payload.totalTimeToCorrect,
+                shareRounds: payload.shareRounds || [],
+              },
+            };
             case "rematchState": return { ...s, rematchReady: Object.fromEntries(payload.players.map((p: { id: string; ready: boolean }) => [p.id, p.ready])) };
             case "rematchLobby": return {
               ...s, phase: "lobby", players: payload.players, config: payload.config,
