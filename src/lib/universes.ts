@@ -1,5 +1,28 @@
-// Universe registry. Dow 30 is hardcoded (guaranteed). S&P 500 and Nasdaq 100
-// are fetched from Wikipedia at first access and cached in memory.
+// Universe registry. Dynamic index lists are cached in memory, while every
+// match receives a final ticker snapshot before it is created.
+import aiBottlenecks from "../../data/universes/ai-bottlenecks.json";
+
+export type UniverseSource = "built-in" | "etf" | "community" | "custom";
+
+export type UniverseSnapshot = {
+  id: string;
+  name: string;
+  source: UniverseSource;
+  tickers: string[];
+  issuer?: string;
+  asOf?: string;
+};
+
+export const SYMBOL_PATTERN = /^[A-Z0-9.-]{1,15}$/;
+
+export function normalizeTickers(value: unknown, limit = 1000): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .filter((ticker): ticker is string => typeof ticker === "string")
+    .map((ticker) => ticker.trim().toUpperCase())
+    .filter((ticker) => SYMBOL_PATTERN.test(ticker))
+  )].slice(0, limit);
+}
 
 const DOW_30 = [
   "AXP", "AMGN", "AMZN", "AAPL", "BA", "CAT", "CVX", "CSCO", "KO", "DIS",
@@ -7,20 +30,14 @@ const DOW_30 = [
   "MRK", "MSFT", "NKE", "PG", "CRM", "TRV", "UNH", "VZ", "V", "WMT",
 ];
 
-// The companies that supply the compute, networking, memory, power, and
-// fabrication capacity behind the current AI buildout, plus liquid sector ETFs.
-const AI_INFRASTRUCTURE_AND_SEMIS = [
-  "SOXX", "SMH", "XSD", "SOXQ",
-  "NVDA", "AVGO", "AMD", "INTC", "TSM", "ASML", "ARM", "MRVL",
-  "MU", "LRCX", "AMAT", "KLAC", "MCHP", "ON", "ADI", "TXN",
-  "ANET", "CRDO", "VRT", "ETN", "GEV", "PWR", "CEG", "VST",
-];
+export const AI_BOTTLENECK_CATEGORIES = aiBottlenecks.categories;
+const AI_BOTTLENECKS = normalizeTickers(aiBottlenecks.categories.flatMap((category) => category.tickers));
 
 export const CUSTOM_UNIVERSE = "Custom basket";
 
 const cache: Record<string, string[]> = {
   "Dow 30": DOW_30,
-  "AI Infrastructure & Semis": AI_INFRASTRUCTURE_AND_SEMIS,
+  "AI Bottlenecks": AI_BOTTLENECKS,
 };
 
 async function fetchTickers(url: string, pattern: RegExp): Promise<string[]> {
@@ -56,4 +73,19 @@ export async function getUniverse(name: string): Promise<string[]> {
   return cache[name] || DOW_30;
 }
 
-export const UNIVERSE_NAMES = ["S&P 500", "Nasdaq 100", "Dow 30", "AI Infrastructure & Semis"];
+export const UNIVERSE_NAMES = ["S&P 500", "Nasdaq 100", "Dow 30", "AI Bottlenecks"];
+
+export const BUILT_IN_UNIVERSES = UNIVERSE_NAMES.map((name) => ({
+  id: name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+  name,
+  source: "built-in" as const,
+}));
+
+export async function resolveBuiltInUniverse(idOrName: string): Promise<UniverseSnapshot | null> {
+  const definition = BUILT_IN_UNIVERSES.find((item) => item.id === idOrName || item.name === idOrName);
+  if (!definition) return null;
+  return {
+    ...definition,
+    tickers: normalizeTickers(await getUniverse(definition.name)),
+  };
+}

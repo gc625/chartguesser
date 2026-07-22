@@ -1,0 +1,42 @@
+{
+  "name": "AI Bottlenecks",
+  "description": "The liquid, public companies supplying the hardest-to-scale parts of AI infrastructure.",
+  "categories": [
+    {
+      "name": "Accelerators and connectivity silicon",
+      "tickers": ["NVDA", "AMD", "AVGO", "TSM", "INTC", "ARM", "MRVL", "ALAB", "CRDO", "MPWR"]
+    },
+    {
+      "name": "Semiconductor equipment and packaging",
+      "tickers": ["ASML", "AMAT", "LRCX", "KLAC", "TER", "ENTG", "MKSI", "ACLS", "CAMT", "FORM", "ASX", "ONTO"]
+    },
+    {
+      "name": "Optics, photonics and interconnect",
+      "tickers": ["COHR", "LITE", "FN", "CIEN", "GLW", "AAOI", "MTSI", "APH", "TEL", "VIAV"]
+    },
+    {
+      "name": "Networking and AI servers",
+      "tickers": ["ANET", "CSCO", "HPE", "DELL", "SMCI"]
+    },
+    {
+      "name": "Memory and storage",
+      "tickers": ["MU", "STX", "WDC", "SNDK", "PSTG", "NTAP"]
+    },
+    {
+      "name": "Grid and electrical equipment",
+      "tickers": ["ETN", "GEV", "HUBB", "NVT", "POWL", "ABB", "EMR", "AME", "ROK", "VMI", "PH"]
+    },
+    {
+      "name": "Cooling and thermal management",
+      "tickers": ["VRT", "TT", "JCI", "MOD", "SPXC"]
+    },
+    {
+      "name": "Power generation and fuel",
+      "tickers": ["CEG", "VST", "TLN", "NRG", "BE", "CCJ", "BWXT", "LEU"]
+    },
+    {
+      "name": "Construction and electrical contracting",
+      "tickers": ["PWR", "EME", "FIX", "STRL", "MTZ", "AGX", "MYRG"]
+    }
+  ]
+}

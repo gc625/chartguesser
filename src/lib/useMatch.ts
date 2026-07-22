@@ -3,7 +3,10 @@ import { useEffect, useRef, useState, useCallback } from "react";
 
 export type PlayerInfo = { id: string; name: string; ready: boolean; connected?: boolean };
 export type MatchConfig = {
-  universe: string; rounds: number; roundTimer: number; startingHp: number;
+  universeId: string; universe: string;
+  universeSource: "built-in" | "etf" | "community" | "custom";
+  tickers: string[];
+  rounds: number; roundTimer: number; startingHp: number;
   customTickers: string[];
   guessMode: "single" | "unlimited"; wrongGuessPenalty: number;
   anonymizeDate: boolean; anonymizePrice: boolean; timeframe: string;

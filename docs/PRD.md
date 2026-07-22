@@ -144,6 +144,15 @@ Inspired by GeoGuesser's battle/duel modes. Each player has a health bar (HP). C
 - **Universe lists:** Maintained as static JSON files in the repo (e.g. `data/universes/sp500.json`) refreshed periodically via script.
 - **Sampling:** Server selects a ticker uniformly at random from the universe, then a random start date such that the window ends at least 90 days before today.
 
+### 5.1 Universe catalog extension
+
+- Every match stores an immutable snapshot of its resolved stock tickers.
+- Selecting an ETF means playing its equity constituents; the ETF symbol is not itself a guess target.
+- Free ETF coverage is issuer-adapter based and intentionally explicit. Unsupported and non-transparent funds are rejected rather than represented by incomplete top holdings.
+- The AI Bottlenecks built-in spans semiconductors, equipment, optics, networking, memory, power, cooling, grid hardware, and construction.
+- Anonymous users can publish immutable 2–200-stock community lists to Postgres. Built-in and private custom lists remain available when the database is down.
+- The creator and both lobby players can preview the exact ticker pool before the match starts.
+
 ---
 
 ## 6. Technical Architecture (MVP)

@@ -47,3 +47,20 @@ Render runs a single Node web service on one port — which is why the app uses 
 - The free plan **sleeps after ~15 min of inactivity** and wakes on the next HTTP request, so the first load after idle takes ~30s. Live matches are unaffected once awake.
 - Match state is in-memory, so it's lost if the service restarts or sleeps. Fine for MVP play sessions.
 - Yahoo Finance is rate-limited; the server caches OHLCV per `(ticker, interval)` and re-samples up to 8 tickers per round.
+
+## Universe catalog
+
+Matches snapshot their exact ticker pool when they are created. Players can choose:
+
+- Built-ins: S&P 500, Nasdaq 100, Dow 30, and the curated 74-stock AI Bottlenecks universe.
+- ETF constituents: the ETF itself is not guessed; its equity holdings become the ticker pool.
+- Community lists: immutable anonymous lists stored in Postgres.
+- Private custom lists of 2–200 US-listed stock symbols.
+
+The free ETF resolver uses issuer-specific sources. SOXX and SMH have dated complete fallback snapshots because the iShares and VanEck sites can block automated requests; supported Invesco funds use its public DNG holdings endpoint. Unsupported or non-transparent ETFs return a clear error instead of an incomplete top-holdings list.
+
+## Persistent community lists
+
+Set `DATABASE_URL` to a managed Postgres database, such as Neon, before starting the service. Tables are created lazily at runtime; the equivalent schema is recorded in `db/migrations/001_universe_catalog.sql`.
+
+Community submissions are anonymous, immutable, deduplicated, capped at 200 symbols, and rate-limited per process/IP. If Postgres is unavailable, built-in and private custom matches continue to work while community browsing and publishing are disabled.

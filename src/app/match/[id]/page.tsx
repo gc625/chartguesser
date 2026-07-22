@@ -5,6 +5,7 @@ import { useMatch } from "@/lib/useMatch";
 import ChartView from "@/components/ChartView";
 import TickerAutocomplete from "@/components/TickerAutocomplete";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import TickerPreview from "@/components/TickerPreview";
 
 export default function MatchPage({ params }: { params: Promise<{ id: string }> }) {
   const [id, setId] = useState<string | null>(null);
@@ -197,11 +198,16 @@ function Game({ matchId, displayName }: { matchId: string; displayName: string }
           {!me ? "Connecting…" : me.ready ? "Not Ready" : "Ready Up"}
         </button>
         {state.config && (
-          <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-950/70 p-3 text-xs text-slate-400">
-            <div>{state.config.universe}</div><div>{state.config.rounds} rounds</div>
-            <div>{state.config.roundTimer}s per round</div><div>{state.config.startingHp} starting HP</div>
-            <div className="col-span-2">{state.config.guessMode === "single" ? "One guess each" : `Unlimited guesses · −${state.config.wrongGuessPenalty} HP wrong guess`}</div>
-          </div>
+          <>
+            <div className="mt-5 grid grid-cols-2 gap-2 rounded-xl bg-slate-950/70 p-3 text-xs text-slate-400">
+              <div>{state.config.universe}</div><div>{state.config.rounds} rounds</div>
+              <div>{state.config.roundTimer}s per round</div><div>{state.config.startingHp} starting HP</div>
+              <div className="col-span-2">{state.config.guessMode === "single" ? "One guess each" : `Unlimited guesses · −${state.config.wrongGuessPenalty} HP wrong guess`}</div>
+            </div>
+            <div className="mt-3">
+              <TickerPreview tickers={state.config.tickers || state.config.customTickers} title="Exact match ticker pool" />
+            </div>
+          </>
         )}
         </div>
       </Shell>
@@ -298,7 +304,7 @@ function Game({ matchId, displayName }: { matchId: string; displayName: string }
                 Guess locked: <span className="font-semibold">{state.myGuess}</span>
               </div>
             ) : (
-              <><TickerAutocomplete universe={state.config?.universe || "Dow 30"} customTickers={state.config?.universe === "Custom basket" ? state.config.customTickers : undefined} disabled={state.phase !== "playing"} onSubmit={submitGuess} />
+              <><TickerAutocomplete universe={state.config?.universe || "Dow 30"} customTickers={state.config?.tickers || state.config?.customTickers} disabled={state.phase !== "playing"} onSubmit={submitGuess} />
               {isUnlimited && <p className="mt-2 text-xs text-slate-500">Wrong guesses cost {state.config?.wrongGuessPenalty} HP. Tickers stay hidden until results.</p>}</>
             )}
           </div>

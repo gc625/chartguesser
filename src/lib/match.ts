@@ -1,9 +1,12 @@
 import { sampleCurrentWindow, type Candle } from "./chart";
-import { CUSTOM_UNIVERSE, getUniverse } from "./universes";
+import { CUSTOM_UNIVERSE, getUniverse, type UniverseSource } from "./universes";
 import { randomUUID } from "crypto";
 
 export type MatchConfig = {
+  universeId: string;
   universe: string;
+  universeSource: UniverseSource;
+  tickers: string[];
   rounds: number;
   roundTimer: number; // seconds
   startingHp: number;
@@ -157,9 +160,11 @@ async function startRound(m: Match) {
   m.roundResult = null;
   m.players.forEach((p) => { p.guess = null; p.guessAt = null; p.correctTime = null; p.guesses = []; });
   try {
-    const universe = m.config.universe === CUSTOM_UNIVERSE
-      ? m.config.customTickers
-      : await getUniverse(m.config.universe);
+    const universe = m.config.tickers?.length
+      ? m.config.tickers
+      : m.config.universe === CUSTOM_UNIVERSE
+        ? m.config.customTickers
+        : await getUniverse(m.config.universe);
     const { ticker, candles } = await sampleCurrentWindow(universe);
     m.current = { ticker, candles, startedAt: Date.now() };
     broadcast(m, "roundStart", {
@@ -276,9 +281,11 @@ export async function handleMessage(m: Match, p: Player, msg: any) {
     if (m.state !== "playing") return;
     if (p.guess != null) return;
     const guess = (msg.ticker || "").toUpperCase();
-    const allowedTickers = m.config.universe === CUSTOM_UNIVERSE
-      ? m.config.customTickers
-      : await getUniverse(m.config.universe);
+    const allowedTickers = m.config.tickers?.length
+      ? m.config.tickers
+      : m.config.universe === CUSTOM_UNIVERSE
+        ? m.config.customTickers
+        : await getUniverse(m.config.universe);
     if (!allowedTickers.includes(guess)) {
       send(p, "error", { message: "Choose a ticker from this match’s universe." });
       return;
