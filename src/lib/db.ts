@@ -8,9 +8,18 @@ let schemaPromise: Promise<void> | null = null;
 export function getDatabase(): DatabaseClient | null {
   if (client !== undefined) return client;
   const connectionString = process.env.DATABASE_URL;
-  client = connectionString
-    ? postgres(connectionString, { max: 5, idle_timeout: 20, connect_timeout: 10 })
-    : null;
+  if (!connectionString) {
+    client = null;
+    return client;
+  }
+  const hostname = new URL(connectionString).hostname;
+  const ssl = hostname.endsWith(".render.com") ? "require" as const : undefined;
+  client = postgres(connectionString, {
+    max: 5,
+    idle_timeout: 20,
+    connect_timeout: 10,
+    ...(ssl ? { ssl } : {}),
+  });
   return client;
 }
 
